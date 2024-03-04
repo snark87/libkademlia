@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "node.proto";
+
+package kademlia;
+
+// Request and response messages for finding nodes.
+message FindNodeRequest {
+  Node sender = 1;     // The ID of the node making the request
+  NodeId targetId = 2; // The target node ID to find
+}
+
+message FindNodeResponse {
+  Nodes discovered = 1; // The closest nodes to the target
+}

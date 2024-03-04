@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+import "node.proto";
+
+package kademlia;
+
+message Key {
+  string base64 = 1; // node unique identifier encoded as base64
+}
+
+message FindValueRequest{
+    Node sender = 1;
+    Key key = 2;
+}
+
+message FindValueResponse {
+    oneof result {
+        Nodes discovered = 1;
+        string value = 2;
+    }
+}
+

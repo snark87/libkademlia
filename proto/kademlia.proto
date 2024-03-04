@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+import "node_discovery.proto";
+import "ping.proto";
+import "find_value.proto";
+
+
+package kademlia;
+
+service KademliaOperations {
+  rpc FindNode(FindNodeRequest) returns (FindNodeResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc FindValue(FindValueRequest) returns(FindValueResponse);
+}

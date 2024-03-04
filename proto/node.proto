@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package kademlia;
+
+message NodeId {
+  string idBase64 = 1; // node unique identifier encoded as base64
+}
+
+// Node information required for the Kademlia network.
+message Node {
+  NodeId id = 1;      // The node's unique identifier
+  string address = 2; // The node's network address as `host_or_ip:port`
+}
+
+message Nodes {
+    repeated Node nodes = 1;
+}

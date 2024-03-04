@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+import "node.proto";
+
+package kademlia;
+
+message PingRequest{
+    Node sender = 1;
+}
+
+message PingResponse{
+}
