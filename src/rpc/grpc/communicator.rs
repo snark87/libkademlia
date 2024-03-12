@@ -1,7 +1,7 @@
 use log::error;
 use tonic::async_trait;
 
-use crate::rpc::FindValueResult;
+use crate::rpc::{FindValueResult, NodeAvailabilityChecker};
 use crate::{node, Communicator, Key, KeySizeParameters};
 
 use super::proto::*;
@@ -56,9 +56,32 @@ impl<P: KeySizeParameters> GrpcCommunicator<P> {
 }
 
 #[async_trait]
-impl<P: KeySizeParameters> Communicator<P> for GrpcCommunicator<P> {
+impl<P: KeySizeParameters> NodeAvailabilityChecker for GrpcCommunicator<P> {
     type Link = String;
     type Error = Error;
+    async fn ping(&self, link: &Self::Link) -> Result<(), Self::Error> {
+        let result: Result<_, _> = {
+            let _ = self
+                .client
+                .ping(
+                    link,
+                    PingRequest {
+                        sender: Some(Node::from(&self.owner)),
+                    },
+                )
+                .await?;
+
+            Ok(())
+        };
+
+        result.inspect_err(|err| {
+            error!("PING rpc to {:?} failed: {}", link, err);
+        })
+    }
+}
+
+#[async_trait]
+impl<P: KeySizeParameters> Communicator<P> for GrpcCommunicator<P> {
     type Value = String;
 
     async fn get_k_closest(
@@ -88,26 +111,6 @@ impl<P: KeySizeParameters> Communicator<P> for GrpcCommunicator<P> {
 
         result.inspect_err(|err| {
             error!("FIND_NODE rpc to {:?} failed: {}", link, err);
-        })
-    }
-
-    async fn ping(&self, link: &Self::Link) -> Result<(), Self::Error> {
-        let result: Result<_, _> = {
-            let _ = self
-                .client
-                .ping(
-                    link,
-                    PingRequest {
-                        sender: Some(Node::from(&self.owner)),
-                    },
-                )
-                .await?;
-
-            Ok(())
-        };
-
-        result.inspect_err(|err| {
-            error!("PING rpc to {:?} failed: {}", link, err);
         })
     }
 
@@ -150,10 +153,26 @@ impl<P: KeySizeParameters> Communicator<P> for GrpcCommunicator<P> {
 
     async fn store_value(
         &self,
-        _link: &Self::Link,
-        _value: Self::Value,
+        link: &Self::Link,
+        key: &Key<P>,
+        value: Self::Value,
     ) -> Result<(), Self::Error> {
-        Ok(())
+        let result = self
+            .client
+            .store_value(
+                link,
+                StoreValueRequest {
+                    sender: Some((&self.owner).into()),
+                    key: Some(key.into()),
+                    value: value,
+                },
+            )
+            .await
+            .map(|_| ());
+
+        result.inspect_err(|err| {
+            error!("FIND_VALUE rpc to {:?} failed: {}", link, err);
+        })
     }
 }
 

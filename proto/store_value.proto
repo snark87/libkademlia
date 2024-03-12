@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+import "node.proto";
+import "find_value.proto";
+
+package kademlia;
+
+message StoreValueRequest{
+    Node sender = 1;
+    Key key = 2;
+    string value = 3;
+}
+
+message StoreValueResponse {
+}
+
+

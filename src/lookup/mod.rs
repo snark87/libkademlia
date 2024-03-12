@@ -46,7 +46,7 @@ pub mod mocks;
 ///
 pub async fn kademlia_node_lookup<P: KademliaParameters, C: Communicator<P>>(
     communicator: &C,
-    routing_table: &impl RoutingTable<Node = Node<P, C::Link>, Key = Key<P>>,
+    routing_table: &impl RoutingTable<P, Link = C::Link, Communicator = C>,
     key: &Key<P>,
 ) -> Vec<Node<P, C::Link>> {
     let method = FindNodeLookup::new(key, communicator);
@@ -61,7 +61,7 @@ pub async fn kademlia_node_lookup<P: KademliaParameters, C: Communicator<P>>(
 
 pub async fn kademlia_find_value<P: KademliaParameters, C: Communicator<P>>(
     communicator: &C,
-    routing_table: &impl RoutingTable<Node = Node<P, C::Link>, Key = Key<P>>,
+    routing_table: &impl RoutingTable<P, Link = C::Link, Communicator = C>,
     key: &Key<P>,
 ) -> Option<C::Value> {
     let method = FindValueLookup::new(key, communicator);
@@ -73,7 +73,7 @@ pub async fn kademlia_find_value<P: KademliaParameters, C: Communicator<P>>(
 
 async fn kademlia_node_lookup_internal<P: KademliaParameters, M: LookupMethod<P>>(
     method: &M,
-    routing_table: &impl RoutingTable<Node = Node<P, M::Link>, Key = Key<P>>,
+    routing_table: &impl RoutingTable<P, Link = M::Link, Communicator = M::Communicator>,
     key: &Key<P>,
 ) -> FindValueResult<P, M::Link, M::Value> {
     // Kademlia lookup is a recursive algorithm, we need a way to stop the recursion
@@ -98,7 +98,11 @@ async fn kademlia_node_lookup_internal<P: KademliaParameters, M: LookupMethod<P>
     });
 
     let discovered_contacts_stream = discover_new_contacts(method, &state, nodes_to_request_stream);
-    let discovered_contacts_stream = store_contacts(routing_table, discovered_contacts_stream);
+    let discovered_contacts_stream = store_contacts(
+        method.communicator(),
+        routing_table,
+        discovered_contacts_stream,
+    );
 
     // recursion step
     let query_discovered_contacts_fut = query_discovered_contacts(
@@ -112,12 +116,20 @@ async fn kademlia_node_lookup_internal<P: KademliaParameters, M: LookupMethod<P>
     state.get_result().await
 }
 
-fn store_contacts<'a, P: KademliaParameters + 'a, Link: Clone + 'a>(
-    routing_table: &'a impl RoutingTable<Node = Node<P, Link>, Key = Key<P>>,
+fn store_contacts<
+    'a,
+    P: KademliaParameters + 'a,
+    Link: Clone + 'a,
+    C: Communicator<P, Link = Link>,
+>(
+    communicator: &'a C,
+    routing_table: &'a impl RoutingTable<P, Link = Link, Communicator = C>,
     contacts: impl Stream<Item = Arc<Node<P, Link>>> + 'a,
 ) -> impl Stream<Item = Arc<Node<P, Link>>> + 'a {
     contacts.then(move |node| async {
-        routing_table.store(node.as_ref().clone()).await;
+        routing_table
+            .store(communicator, node.as_ref().clone())
+            .await;
         node
     })
 }
