@@ -80,7 +80,9 @@ async fn kademlia_node_lookup_internal<P: KademliaParameters, M: LookupMethod<P>
     let (done_tx, done_rx) = oneshot::channel();
 
     let state = LookupState::new(key, done_tx);
-    let closest = routing_table.find_closest_nodes(P::ALPHA_PARAM as usize, key);
+    let closest = routing_table
+        .find_closest_nodes(P::ALPHA_PARAM as usize, key)
+        .await;
     if closest.is_empty() {
         return FindValueResult::ClosestNodes(vec![]);
     }

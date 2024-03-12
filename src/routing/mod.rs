@@ -17,8 +17,8 @@ pub trait RoutingTable {
     type Node: Clone;
 
     async fn store(&self, node: Self::Node);
-    fn find_closest_nodes(&self, count: usize, key: &Self::Key) -> Vec<Self::Node>;
-    fn find_by_id(&self, id: &Self::Key) -> Option<Self::Node>;
+    async fn find_closest_nodes(&self, count: usize, key: &Self::Key) -> Vec<Self::Node>;
+    async fn find_by_id(&self, id: &Self::Key) -> Option<Self::Node>;
 }
 
 /// represents simplified Kademlia routing table.
@@ -104,8 +104,8 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
         }
     }
 
-    pub fn find_closest_nodes(&self, count: usize, key: &Key<P>) -> Vec<Node<P, Link>> {
-        let buckets = self.buckets.blocking_read();
+    pub async fn find_closest_nodes(&self, count: usize, key: &Key<P>) -> Vec<Node<P, Link>> {
+        let buckets = self.buckets.read().await;
         let ref_buckets: Vec<_> = buckets.iter().map(|b| b).collect();
         let shifted_key = self.shift_key(key);
         Self::find_closest(ref_buckets, &shifted_key)
@@ -115,8 +115,8 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
             .collect()
     }
 
-    pub fn find_by_id(&self, id: &Key<P>) -> Option<Node<P, Link>> {
-        let buckets = self.buckets.blocking_read();
+    pub async fn find_by_id(&self, id: &Key<P>) -> Option<Node<P, Link>> {
+        let buckets = self.buckets.read().await;
 
         let shifted_key = self.shift_key(id);
         let bucket = Self::find_bucket(&buckets, &shifted_key);
@@ -125,5 +125,34 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
 
     fn shift_key(&self, key: &Key<P>) -> ShiftedKey<P> {
         ShiftedKey::new(&self.node_id, key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use crate::{
+        lookup::mocks::{MockCommunicator, TestLink},
+        Key, Node,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn when_node_stored_find_by_id_should_find_it() {
+        // Arrange
+        let owner_id = Key::new();
+        let node_id = Rc::new(Key::new());
+        let node_to_store = Node::new(node_id.as_ref().clone(), TestLink::Link1);
+        let communicator = MockCommunicator::new();
+
+        let table = SimpleRoutingTable::new(&owner_id);
+
+        // Act
+        table.store(&communicator, node_to_store).await;
+        let stored_node = table.find_by_id(node_id.as_ref()).await;
+        let stored_node_id = stored_node.map(|n| n.node_id);
+        assert_eq!(Some(node_id.as_ref().clone()), stored_node_id);
     }
 }

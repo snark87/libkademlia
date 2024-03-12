@@ -47,7 +47,7 @@ mock! {
         type Key = Key<DefaultKademliaParameters>;
 
         async fn store(&self, node: Node<DefaultKademliaParameters, TestLink>);
-        fn find_closest_nodes(&self, count: usize, key: &Key<DefaultKademliaParameters>) -> Vec<Node<DefaultKademliaParameters, TestLink>>;
-        fn find_by_id(&self, id: &Key<DefaultKademliaParameters>) -> Option<Node<DefaultKademliaParameters, TestLink>>;
+        async fn find_closest_nodes(&self, count: usize, key: &Key<DefaultKademliaParameters>) -> Vec<Node<DefaultKademliaParameters, TestLink>>;
+        async fn find_by_id(&self, id: &Key<DefaultKademliaParameters>) -> Option<Node<DefaultKademliaParameters, TestLink>>;
     }
 }
