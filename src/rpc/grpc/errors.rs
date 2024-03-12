@@ -11,7 +11,7 @@ pub enum Error {
     #[error("error decoding node id: {error:?}")]
     NodeIdDecodeError { error: base64::DecodeError },
     #[error("transport error: {error}")]
-    TransportError{ error: tonic::transport::Error },
+    TransportError { error: tonic::transport::Error },
     #[error("gRPC response with code {code:?}: {message:?}")]
-    GrpcStatusError{ code: tonic::Code, message: String },
+    GrpcStatusError { code: tonic::Code, message: String },
 }

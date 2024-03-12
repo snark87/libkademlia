@@ -5,9 +5,7 @@ use std::collections::BinaryHeap;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::{
-    key::Key, node::Node, Communicator, KademliaParameters
-};
+use crate::{key::Key, node::Node, Communicator, KademliaParameters};
 
 use kbucket::KBucket;
 
@@ -88,7 +86,11 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
             .unwrap() // there should be always a bucket to contain a key
     }
 
-    pub async fn store<C: Communicator<P, Link=Link>>(&self, communicator: &C, node: Node<P, Link>) {
+    pub async fn store<C: Communicator<P, Link = Link>>(
+        &self,
+        communicator: &C,
+        node: Node<P, Link>,
+    ) {
         let mut buckets = self.buckets.write().await;
         let shifted_key = self.shift_key(&node.node_id);
         let bucket = Self::find_bucket_mut(&mut buckets, &shifted_key);
@@ -125,4 +127,3 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
         ShiftedKey::new(&self.node_id, key)
     }
 }
-

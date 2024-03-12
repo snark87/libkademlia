@@ -3,7 +3,13 @@ use std::sync::Arc;
 use futures::{stream, Future, FutureExt, Stream, StreamExt};
 use tokio::sync::{mpsc::Sender, oneshot};
 
-use crate::{key::Key, node::Node, routing::RoutingTable, rpc::{Communicator, FindValueResult}, KademliaParameters};
+use crate::{
+    key::Key,
+    node::Node,
+    routing::RoutingTable,
+    rpc::{Communicator, FindValueResult},
+    KademliaParameters,
+};
 
 use self::{
     method::{FindNodeLookup, FindValueLookup, LookupMethod},
@@ -44,7 +50,9 @@ pub async fn kademlia_node_lookup<P: KademliaParameters, C: Communicator<P>>(
     key: &Key<P>,
 ) -> Vec<Node<P, C::Link>> {
     let method = FindNodeLookup::new(key, communicator);
-    if let FindValueResult::ClosestNodes(nodes) =  kademlia_node_lookup_internal(&method, routing_table, key).await {
+    if let FindValueResult::ClosestNodes(nodes) =
+        kademlia_node_lookup_internal(&method, routing_table, key).await
+    {
         nodes
     } else {
         panic!("FindNode returned value: this should never happen")
@@ -368,7 +376,10 @@ mod tests {
             .expect_find_value()
             .times(2)
             .returning(move |link, _| match link {
-                TestLink::Link1 => Ok(FindValueResult::ClosestNodes(vec![Node::new(k2.clone(), TestLink::Link2)])),
+                TestLink::Link1 => Ok(FindValueResult::ClosestNodes(vec![Node::new(
+                    k2.clone(),
+                    TestLink::Link2,
+                )])),
                 TestLink::Link2 => Ok(FindValueResult::FoundValue(return_value.clone())),
                 _ => Err(TestError::TestError),
             });
@@ -377,5 +388,4 @@ mod tests {
         let result = kademlia_find_value(&communicator, &routing_table, &key).await;
         assert_eq!(Some(value), result);
     }
-
 }

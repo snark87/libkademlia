@@ -148,7 +148,11 @@ impl<P: KeySizeParameters> Communicator<P> for GrpcCommunicator<P> {
         })
     }
 
-    async fn store_value(&self, _link: &Self::Link, _value: Self::Value) -> Result<(), Self::Error> {
+    async fn store_value(
+        &self,
+        _link: &Self::Link,
+        _value: Self::Value,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -334,9 +338,7 @@ mod tests {
             GrpcCommunicator::<DefaultKademliaParameters>::with_client(&owner, client);
 
         // Act
-        let response = communicator.find_value(&link, &target_key)
-            .await
-            .unwrap();
+        let response = communicator.find_value(&link, &target_key).await.unwrap();
 
         // Assert
         match response {
@@ -349,29 +351,10 @@ mod tests {
     async fn find_value_when_error_should_return_error() {
         // Arrange
         let mut client = MockNodeDiscoveryClient::new();
-        client.expect_find_value().once().returning(move |_, _| {Err(Error::GrpcStatusError { code: tonic::Code::Internal, message: String::from("test error") })});
-        let node_id = Key::new();
-        let owner = node::Node::new(node_id, String::from("owner_link"));
-        let target_key = Key::new();
-        let link = String::from("test_link");
-        let communicator =
-            GrpcCommunicator::<DefaultKademliaParameters>::with_client(&owner, client);
-
-        // Act
-        let response = communicator.find_value(&link, &target_key)
-            .await;
-
-        // Assert
-        assert!(response.is_err());
-     }
-
-    #[tokio::test]
-    async fn find_value_when_empty_result_it_should_return_value() {
-        // Arrange
-        let mut client = MockNodeDiscoveryClient::new();
         client.expect_find_value().once().returning(move |_, _| {
-            Ok(FindValueResponse {
-                result: None,
+            Err(Error::GrpcStatusError {
+                code: tonic::Code::Internal,
+                message: String::from("test error"),
             })
         });
         let node_id = Key::new();
@@ -382,8 +365,29 @@ mod tests {
             GrpcCommunicator::<DefaultKademliaParameters>::with_client(&owner, client);
 
         // Act
-        let response = communicator.find_value(&link, &target_key)
-            .await;
+        let response = communicator.find_value(&link, &target_key).await;
+
+        // Assert
+        assert!(response.is_err());
+    }
+
+    #[tokio::test]
+    async fn find_value_when_empty_result_it_should_return_value() {
+        // Arrange
+        let mut client = MockNodeDiscoveryClient::new();
+        client
+            .expect_find_value()
+            .once()
+            .returning(move |_, _| Ok(FindValueResponse { result: None }));
+        let node_id = Key::new();
+        let owner = node::Node::new(node_id, String::from("owner_link"));
+        let target_key = Key::new();
+        let link = String::from("test_link");
+        let communicator =
+            GrpcCommunicator::<DefaultKademliaParameters>::with_client(&owner, client);
+
+        // Act
+        let response = communicator.find_value(&link, &target_key).await;
 
         // Assert
         assert!(response.is_err());
@@ -393,12 +397,15 @@ mod tests {
     async fn find_value_when_value_not_found_it_should_return_nodes() {
         // Arrange
         let mut client = MockNodeDiscoveryClient::new();
-        let nodes = vec![node::Node::<DefaultKademliaParameters, String>::new(key::Key::new(), String::from("test link"))];
+        let nodes = vec![node::Node::<DefaultKademliaParameters, String>::new(
+            key::Key::new(),
+            String::from("test link"),
+        )];
         let return_nodes = nodes.clone();
         client.expect_find_value().once().returning(move |_, _| {
             Ok(FindValueResponse {
                 result: Some(find_value_response::Result::Discovered(Nodes {
-                    nodes: return_nodes.iter().map(|n| n.into()).collect()
+                    nodes: return_nodes.iter().map(|n| n.into()).collect(),
                 })),
             })
         });
@@ -410,16 +417,14 @@ mod tests {
             GrpcCommunicator::<DefaultKademliaParameters>::with_client(&owner, client);
 
         // Act
-        let response = communicator.find_value(&link, &target_key)
-            .await
-            .unwrap();
+        let response = communicator.find_value(&link, &target_key).await.unwrap();
 
         // Assert
         match response {
-            FindValueResult::ClosestNodes(actual_nodes) => {assert_eq!(nodes, actual_nodes)},
-            FindValueResult::FoundValue(_) => panic!("it should not return value")
+            FindValueResult::ClosestNodes(actual_nodes) => {
+                assert_eq!(nodes, actual_nodes)
+            }
+            FindValueResult::FoundValue(_) => panic!("it should not return value"),
         }
     }
-
-
 }

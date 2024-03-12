@@ -9,7 +9,7 @@ pub mod grpc;
 /// This enum has two variants:
 ///
 /// - `ClosestNodes(Vec<Node<P, Link>>)` is returned when the value associated with the requested key is not found.
-///   Instead, it provides a vector of the closest nodes to the requested key, based on the XOR metric. These nodes are 
+///   Instead, it provides a vector of the closest nodes to the requested key, based on the XOR metric. These nodes are
 ///   potential candidates for either storing the sought value or knowing where it might be located.
 ///
 /// - `FoundValue(V)` is returned when the exact value associated with the requested key is found within the node.
@@ -46,8 +46,8 @@ pub enum FindValueResult<P: KeySizeParameters, Link: Clone, V> {
 /// This trait must be implemented by any entity that wishes to participate in the Kademlia DHT as a fully functional
 /// node, capable of both responding to requests from others and initiating its own queries within the network.
 #[async_trait]
-pub trait Communicator<P: KeySizeParameters>: Send+Sync {
-    type Link: Clone+Sync+Send;
+pub trait Communicator<P: KeySizeParameters>: Send + Sync {
+    type Link: Clone + Sync + Send;
     type Error: std::error::Error;
     type Value;
 
@@ -82,7 +82,7 @@ pub trait Communicator<P: KeySizeParameters>: Send+Sync {
 
     /// Asynchronously attempts to find the value associated with a given key in the DHT network.
     ///
-    /// This method either returns the value directly if it's found, or the closest nodes to the key, aiding in the 
+    /// This method either returns the value directly if it's found, or the closest nodes to the key, aiding in the
     /// search process.
     ///
     /// Parameters:
@@ -111,9 +111,5 @@ pub trait Communicator<P: KeySizeParameters>: Send+Sync {
     /// Returns:
     /// - `Ok(())` if the storage operation is successful.
     /// - `Err(Self::Error)` detailing any issues encountered during the storage operation.
-    async fn store_value(
-        &self,
-        link: &Self::Link,
-        value: Self::Value,
-    ) -> Result<(), Self::Error>;
+    async fn store_value(&self, link: &Self::Link, value: Self::Value) -> Result<(), Self::Error>;
 }

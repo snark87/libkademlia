@@ -6,13 +6,13 @@ use crate::{rpc::FindValueResult, Communicator, Key, KeySizeParameters};
 #[async_trait]
 pub trait LookupMethod<P: KeySizeParameters> {
     type Link: Clone;
-    type Communicator: Communicator<P, Link=Self::Link>;
+    type Communicator: Communicator<P, Link = Self::Link>;
     type Error;
     type Value;
 
     async fn lookup(
         &self,
-        link: &Self::Link
+        link: &Self::Link,
     ) -> Result<FindValueResult<P, Self::Link, Self::Value>, Self::Error>;
 }
 
@@ -24,22 +24,27 @@ pub struct FindNodeLookup<'a, P: KeySizeParameters, C: Communicator<P>> {
 
 impl<'a, P: KeySizeParameters, C: Communicator<P>> FindNodeLookup<'a, P, C> {
     pub fn new(key: &'a Key<P>, communicator: &'a C) -> Self {
-        Self { key: key, communicator: communicator }
+        Self {
+            key: key,
+            communicator: communicator,
+        }
     }
 }
 
 /// represents lookup method for `FIND_VALUE` procedure
-pub struct FindValueLookup<'a, P:KeySizeParameters, C: Communicator<P>> {
+pub struct FindValueLookup<'a, P: KeySizeParameters, C: Communicator<P>> {
     communicator: &'a C,
-    key: &'a Key<P>
+    key: &'a Key<P>,
 }
 
 impl<'a, P: KeySizeParameters, C: Communicator<P>> FindValueLookup<'a, P, C> {
     pub fn new(key: &'a Key<P>, communicator: &'a C) -> Self {
-        Self { key: key, communicator: communicator }
+        Self {
+            key: key,
+            communicator: communicator,
+        }
     }
 }
-
 
 #[async_trait]
 impl<'a, P: KeySizeParameters, C: Communicator<P>> LookupMethod<P> for FindNodeLookup<'a, P, C> {
