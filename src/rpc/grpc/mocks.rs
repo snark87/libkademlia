@@ -1,9 +1,9 @@
-use mockall::mock;
 use async_trait::async_trait;
+use mockall::mock;
 
 use super::{client, proto::*, Error};
 
-mock!{
+mock! {
     pub NodeDiscoveryClient{
     }
 

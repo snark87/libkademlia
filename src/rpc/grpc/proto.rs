@@ -1,8 +1,8 @@
 use base64::{engine::general_purpose::STANDARD as base64_std, Engine};
 use generic_array::GenericArray;
 
-use crate::{key, node, KeySizeParameters};
 use super::Error;
+use crate::{key, node, KeySizeParameters};
 
 tonic::include_proto!("kademlia");
 
@@ -30,8 +30,10 @@ impl<P: KeySizeParameters> TryFrom<&NodeId> for key::Key<P> {
             .decode(&value.id_base64)
             .map_err(|err| Error::NodeIdDecodeError { error: err })?;
         let actual_size = bytes.len();
-        let decoded_array = GenericArray::try_from_iter(bytes.into_iter()).map_err(|_|
-        Error::InvalidKeySize { actual_size: actual_size })?;
+        let decoded_array =
+            GenericArray::try_from_iter(bytes.into_iter()).map_err(|_| Error::InvalidKeySize {
+                actual_size: actual_size,
+            })?;
 
         Ok(Self(decoded_array))
     }
@@ -39,7 +41,10 @@ impl<P: KeySizeParameters> TryFrom<&NodeId> for key::Key<P> {
 
 impl<P: KeySizeParameters> From<&node::Node<P, String>> for Node {
     fn from(value: &node::Node<P, String>) -> Node {
-        Self { id: Some((&value.node_id).into()), address: value.link.clone() }
+        Self {
+            id: Some((&value.node_id).into()),
+            address: value.link.clone(),
+        }
     }
 }
 
@@ -63,8 +68,8 @@ impl<P: KeySizeParameters> TryFrom<Node> for node::Node<P, String> {
 mod tests {
     use crate::{DefaultKademliaParameters, Key};
 
-    use tokio;
     use super::*;
+    use tokio;
 
     #[tokio::test]
     async fn node_id_when_convert_to_base64_and_back_should_stay_the_same() {

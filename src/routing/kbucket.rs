@@ -43,7 +43,7 @@ impl<P: KeySizeParameters> ShiftedKey<P> {
     }
 }
 
-impl <P: KeySizeParameters> From<&Key<P>> for ShiftedKey<P> {
+impl<P: KeySizeParameters> From<&Key<P>> for ShiftedKey<P> {
     fn from(value: &Key<P>) -> Self {
         ShiftedKey::new(value, &Key::zero())
     }
@@ -66,7 +66,7 @@ impl<P: KeySizeParameters> From<&ShiftedKey<P>> for BitVec<u8> {
     }
 }
 
-impl <P: KeySizeParameters> From<&BitVec<u8>> for ShiftedKey<P> {
+impl<P: KeySizeParameters> From<&BitVec<u8>> for ShiftedKey<P> {
     fn from(value: &BitVec<u8>) -> Self {
         let slice: &[u8] = value.as_raw_slice();
         let mut data = GenericArray::default();
@@ -79,7 +79,9 @@ impl <P: KeySizeParameters> From<&BitVec<u8>> for ShiftedKey<P> {
 
 impl KBucketRange {
     pub fn full() -> Self {
-        Self { prefix: BitVec::new() }
+        Self {
+            prefix: BitVec::new(),
+        }
     }
 
     pub fn contains<P: KeySizeParameters>(&self, shifted_key: &ShiftedKey<P>) -> bool {
@@ -95,9 +97,7 @@ impl KBucketRange {
         self.prefix.push(false);
         new_prefix.push(true);
 
-        Self{
-            prefix: new_prefix
-        }
+        Self { prefix: new_prefix }
     }
 }
 pub struct KBucketWithCloseness<'a, P: KademliaParameters, Link: Clone> {
@@ -177,7 +177,7 @@ impl<P: KademliaParameters, Link: Clone> KBucket<P, Link> {
         }
         let split_range = self.range.split();
 
-        Some(Self{
+        Some(Self {
             range: split_range,
             nodes: VecDeque::new(),
         })
@@ -234,8 +234,8 @@ impl<'a, P: KademliaParameters, L: Clone> KBucketWithCloseness<'a, P, L> {
 
 #[cfg(test)]
 mod tests {
-    use bitvec::prelude::*;
     use crate::{lookup, DefaultKademliaParameters, KademliaParameters, Key, Node};
+    use bitvec::prelude::*;
 
     use super::{KBucket, KBucketRange, ShiftedKey};
 
@@ -303,11 +303,13 @@ mod tests {
         assert!(kbucket.nodes.len() <= k as usize);
     }
 
-   #[tokio::test]
+    #[tokio::test]
     async fn kbucket_when_least_recently_seen_dead_cannot_contain_more_than_k_nodes() {
         // Arrange
         let mut communicator = lookup::mocks::MockCommunicator::new();
-        communicator.expect_ping().return_const(Err(lookup::mocks::TestError::TestError));
+        communicator
+            .expect_ping()
+            .return_const(Err(lookup::mocks::TestError::TestError));
 
         let k = DefaultKademliaParameters::K_PARAM;
         let mut kbucket = KBucket::new();

@@ -31,7 +31,7 @@ pub struct Key<Params: KeySizeParameters>(pub GenericArray<u8, Params::KeySize>)
 pub struct Distance<Params: KeySizeParameters>(pub GenericArray<u8, Params::KeySize>);
 
 pub trait KeyLike<P: KeySizeParameters>: AsRef<[u8]> {
-    fn iter(&self) -> impl Iterator<Item=&u8> {
+    fn iter(&self) -> impl Iterator<Item = &u8> {
         let slice = self.as_ref();
         slice.iter()
     }
@@ -65,9 +65,9 @@ impl<P: KeySizeParameters> PartialEq for Key<P> {
     }
 }
 
-impl<P: KeySizeParameters> Eq for Key<P>{}
+impl<P: KeySizeParameters> Eq for Key<P> {}
 
-impl<P: KeySizeParameters> std::hash::Hash for Key<P>{
+impl<P: KeySizeParameters> std::hash::Hash for Key<P> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
@@ -113,22 +113,21 @@ impl<P: KeySizeParameters> std::fmt::Debug for Distance<P> {
         write_byte_string(&self.0, f)
     }
 }
-impl <P: KeySizeParameters> PartialEq for Distance<P> {
+impl<P: KeySizeParameters> PartialEq for Distance<P> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl <P: KeySizeParameters> PartialOrd for Distance<P> {
+impl<P: KeySizeParameters> PartialOrd for Distance<P> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }
 
-impl <P: KeySizeParameters> Eq for Distance<P> {
-}
+impl<P: KeySizeParameters> Eq for Distance<P> {}
 
-impl <P: KeySizeParameters> Ord for Distance<P> {
+impl<P: KeySizeParameters> Ord for Distance<P> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
     }

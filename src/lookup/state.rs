@@ -1,5 +1,8 @@
 use futures::{stream, StreamExt};
-use std::{collections::{BinaryHeap, HashSet}, sync::Arc};
+use std::{
+    collections::{BinaryHeap, HashSet},
+    sync::Arc,
+};
 use tokio::sync::{oneshot, Mutex};
 
 use crate::{
@@ -132,7 +135,8 @@ impl<'k, 'nd, P: KademliaParameters, M: LookupMethod<P>> LookupState<'k, P, M> {
         match nodes_or_value {
             FindValueResult::ClosestNodes(discovered_nodes) => {
                 let new_discovered_nodes = self.filter_new_discovered_nodes(discovered_nodes).await;
-                let new_discovered_nodes: Vec<_> = new_discovered_nodes.into_iter()
+                let new_discovered_nodes: Vec<_> = new_discovered_nodes
+                    .into_iter()
                     .map(|n| Arc::new(n))
                     .collect();
                 stream::iter(new_discovered_nodes.clone())
@@ -143,7 +147,7 @@ impl<'k, 'nd, P: KademliaParameters, M: LookupMethod<P>> LookupState<'k, P, M> {
             FindValueResult::FoundValue(value) => {
                 self.on_value_found(value).await;
                 Ok(vec![])
-            },
+            }
         }
     }
 
