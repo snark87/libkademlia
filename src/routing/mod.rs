@@ -1,24 +1,24 @@
 mod kbucket;
 
-use std::collections::BinaryHeap;
+use std::{collections::BinaryHeap, marker::PhantomData};
 
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::{key::Key, node::Node, Communicator, KademliaParameters};
+use crate::{key::Key, node::Node, rpc::NodeAvailabilityChecker, Communicator, KademliaParameters};
 
 use kbucket::KBucket;
 
 use self::kbucket::{KBucketWithCloseness, ShiftedKey};
 
 #[async_trait]
-pub trait RoutingTable {
-    type Key: Clone;
-    type Node: Clone;
+pub trait RoutingTable<P: KademliaParameters> {
+    type Link: Clone;
+    type Communicator: Communicator<P, Link = Self::Link>;
 
-    async fn store(&self, node: Self::Node);
-    async fn find_closest_nodes(&self, count: usize, key: &Self::Key) -> Vec<Self::Node>;
-    async fn find_by_id(&self, id: &Self::Key) -> Option<Self::Node>;
+    async fn store(&self, communicator: &Self::Communicator, node: Node<P, Self::Link>);
+    async fn find_closest_nodes(&self, count: usize, key: &Key<P>) -> Vec<Node<P, Self::Link>>;
+    async fn find_by_id(&self, id: &Key<P>) -> Option<Node<P, Self::Link>>;
 }
 
 /// represents simplified Kademlia routing table.
@@ -29,27 +29,31 @@ pub trait RoutingTable {
 ///
 /// # Example
 /// ```
-/// use kademlia::{DefaultKademliaParameters, Key, routing::SimpleRoutingTable};
+/// use kademlia::{DefaultKademliaParameters, Key, routing::SimpleRoutingTable, rpc::grpc::GrpcCommunicator};
 ///
-/// // represents link (e.g. ip address and tcp port)
-/// #[derive(Clone)]
-/// struct MyLink {
-/// // definition of `MyLink`
-/// }
+/// type GrpcLink = String;
 ///
 /// let owner_id = Key::new();
-/// let routing_table = SimpleRoutingTable::<DefaultKademliaParameters, MyLink>::new(&owner_id);
+/// let routing_table = SimpleRoutingTable::<DefaultKademliaParameters, GrpcLink, GrpcCommunicator<DefaultKademliaParameters>>::new(&owner_id);
 /// ```
-pub struct SimpleRoutingTable<Params: KademliaParameters, Link: Clone> {
+pub struct SimpleRoutingTable<
+    Params: KademliaParameters,
+    Link: Clone,
+    C: NodeAvailabilityChecker<Link = Link>,
+> {
     node_id: Key<Params>,
     buckets: RwLock<Vec<KBucket<Params, Link>>>,
+    _communicator: PhantomData<C>,
 }
 
-impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
+impl<P: KademliaParameters, Link: Clone, C: Communicator<P, Link = Link>>
+    SimpleRoutingTable<P, Link, C>
+{
     pub fn new(owner_id: &Key<P>) -> Self {
-        SimpleRoutingTable {
+        Self {
             node_id: owner_id.clone(),
             buckets: RwLock::new(vec![KBucket::new()]),
+            _communicator: PhantomData,
         }
     }
 
@@ -86,11 +90,19 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
             .unwrap() // there should be always a bucket to contain a key
     }
 
-    pub async fn store<C: Communicator<P, Link = Link>>(
-        &self,
-        communicator: &C,
-        node: Node<P, Link>,
-    ) {
+    fn shift_key(&self, key: &Key<P>) -> ShiftedKey<P> {
+        ShiftedKey::new(&self.node_id, key)
+    }
+}
+
+#[async_trait]
+impl<P: KademliaParameters, Link: Clone + Send + Sync, C: Communicator<P, Link = Link>>
+    RoutingTable<P> for SimpleRoutingTable<P, Link, C>
+{
+    type Link = Link;
+    type Communicator = C;
+
+    async fn store(&self, communicator: &C, node: Node<P, Link>) {
         let mut buckets = self.buckets.write().await;
         let shifted_key = self.shift_key(&node.node_id);
         let bucket = Self::find_bucket_mut(&mut buckets, &shifted_key);
@@ -104,7 +116,7 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
         }
     }
 
-    pub async fn find_closest_nodes(&self, count: usize, key: &Key<P>) -> Vec<Node<P, Link>> {
+    async fn find_closest_nodes(&self, count: usize, key: &Key<P>) -> Vec<Node<P, Link>> {
         let buckets = self.buckets.read().await;
         let ref_buckets: Vec<_> = buckets.iter().map(|b| b).collect();
         let shifted_key = self.shift_key(key);
@@ -115,16 +127,12 @@ impl<P: KademliaParameters, Link: Clone> SimpleRoutingTable<P, Link> {
             .collect()
     }
 
-    pub async fn find_by_id(&self, id: &Key<P>) -> Option<Node<P, Link>> {
+    async fn find_by_id(&self, id: &Key<P>) -> Option<Node<P, Link>> {
         let buckets = self.buckets.read().await;
 
         let shifted_key = self.shift_key(id);
         let bucket = Self::find_bucket(&buckets, &shifted_key);
         bucket.find_by_id(id).map(|n| n.clone())
-    }
-
-    fn shift_key(&self, key: &Key<P>) -> ShiftedKey<P> {
-        ShiftedKey::new(&self.node_id, key)
     }
 }
 
@@ -134,10 +142,23 @@ mod tests {
 
     use crate::{
         lookup::mocks::{MockCommunicator, TestLink},
-        Key, Node,
+        DefaultKademliaParameters, Key, Node,
     };
 
     use super::*;
+
+    #[tokio::test]
+    async fn when_empty_table_find_by_id_should_find_nothing() {
+        // Arrange
+        let table =
+            SimpleRoutingTable::<DefaultKademliaParameters, TestLink, MockCommunicator>::new(
+                &Key::new(),
+            );
+
+        // Act
+        let stored_node = table.find_by_id(&Key::new()).await;
+        assert_eq!(None, stored_node);
+    }
 
     #[tokio::test]
     async fn when_node_stored_find_by_id_should_find_it() {
@@ -154,5 +175,28 @@ mod tests {
         let stored_node = table.find_by_id(node_id.as_ref()).await;
         let stored_node_id = stored_node.map(|n| n.node_id);
         assert_eq!(Some(node_id.as_ref().clone()), stored_node_id);
+    }
+
+    #[tokio::test]
+    async fn when_up_to_k_nodes_stored_find_by_id_should_find_them() {
+        // Arrange
+        let owner_id = Key::new();
+        let table = SimpleRoutingTable::new(&owner_id);
+
+        let mut stored_ids: Vec<Rc<Key<_>>> = Vec::new();
+        for _ in 0..20 {
+            let node_id = Rc::new(Key::new());
+            stored_ids.push(node_id.clone());
+            let node_to_store = Node::new(node_id.as_ref().clone(), TestLink::Link1);
+            let communicator = MockCommunicator::new();
+
+            // Act
+            table.store(&communicator, node_to_store).await;
+        }
+        for stored_node_id in stored_ids.into_iter() {
+            let stored_node = table.find_by_id(stored_node_id.as_ref()).await;
+            let node_id = stored_node.map(|n| n.node_id);
+            assert_eq!(Some(stored_node_id.as_ref().clone()), node_id);
+        }
     }
 }

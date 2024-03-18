@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::{key::Key, node::Node, params::KeySizeParameters};
+use crate::{key::Key, node::Node, operations, params::KeySizeParameters, KademliaParameters};
 
 pub mod grpc;
 
@@ -18,6 +18,24 @@ pub mod grpc;
 pub enum FindValueResult<P: KeySizeParameters, Link: Clone, V> {
     ClosestNodes(Vec<Node<P, Link>>),
     FoundValue(V),
+}
+
+#[async_trait]
+pub trait NodeAvailabilityChecker {
+    type Error: std::error::Error;
+    type Link: Clone + Sync + Send;
+
+    /// Asynchronously sends a ping to another node in the network to verify its availability.
+    ///
+    /// This method helps maintain the network's health by identifying active versus inactive nodes.
+    ///
+    /// Parameters:
+    /// - `link`: A reference to the `Link` associated with the node to be pinged.
+    ///
+    /// Returns:
+    /// - `Ok(())` if the ping is successful and the node is reachable.
+    /// - `Err(Self::Error)` detailing the error encountered, indicating the node might be down or unreachable.
+    async fn ping(&self, link: &Self::Link) -> Result<(), Self::Error>;
 }
 
 /// Defines the communication capabilities required for a node within a Kademlia Distributed Hash Table (DHT) network.
@@ -46,9 +64,7 @@ pub enum FindValueResult<P: KeySizeParameters, Link: Clone, V> {
 /// This trait must be implemented by any entity that wishes to participate in the Kademlia DHT as a fully functional
 /// node, capable of both responding to requests from others and initiating its own queries within the network.
 #[async_trait]
-pub trait Communicator<P: KeySizeParameters>: Send + Sync {
-    type Link: Clone + Sync + Send;
-    type Error: std::error::Error;
+pub trait Communicator<P: KeySizeParameters>: NodeAvailabilityChecker + Send + Sync {
     type Value;
 
     /// Asynchronously retrieves a list of the `k` closest nodes to a given key within the DHT network.
@@ -67,18 +83,6 @@ pub trait Communicator<P: KeySizeParameters>: Send + Sync {
         link: &Self::Link,
         key: &Key<P>,
     ) -> Result<Vec<Node<P, Self::Link>>, Self::Error>;
-
-    /// Asynchronously sends a ping to another node in the network to verify its availability.
-    ///
-    /// This method helps maintain the network's health by identifying active versus inactive nodes.
-    ///
-    /// Parameters:
-    /// - `link`: A reference to the `Link` associated with the node to be pinged.
-    ///
-    /// Returns:
-    /// - `Ok(())` if the ping is successful and the node is reachable.
-    /// - `Err(Self::Error)` detailing the error encountered, indicating the node might be down or unreachable.
-    async fn ping(&self, link: &Self::Link) -> Result<(), Self::Error>;
 
     /// Asynchronously attempts to find the value associated with a given key in the DHT network.
     ///
@@ -106,10 +110,36 @@ pub trait Communicator<P: KeySizeParameters>: Send + Sync {
     ///
     /// Parameters:
     /// - `link`: A reference to the `Link` associated with the node where the value is to be stored.
+    /// - `key`: A reference to key to store the value at.
     /// - `value`: The value to be stored in the network.
     ///
     /// Returns:
     /// - `Ok(())` if the storage operation is successful.
     /// - `Err(Self::Error)` detailing any issues encountered during the storage operation.
-    async fn store_value(&self, link: &Self::Link, value: Self::Value) -> Result<(), Self::Error>;
+    async fn store_value(
+        &self,
+        link: &Self::Link,
+        key: &Key<P>,
+        value: Self::Value,
+    ) -> Result<(), Self::Error>;
+}
+
+#[async_trait]
+pub trait KademliaServer<P: KademliaParameters> {
+    type Error: std::error::Error;
+    type Link: Clone;
+
+    fn with_operation_handler(
+        self,
+        handler: impl operations::KademliaOperations<P, Link = Self::Link>,
+    ) -> Self;
+
+    async fn start_server(&self) -> Result<(), Self::Error>;
+
+    fn get_link(&self) -> &Self::Link;
+}
+
+pub trait KademliaNodeInterface<P: KademliaParameters, Link: Clone>:
+    Communicator<P, Link = Link> + KademliaServer<P, Link = Link> + Send
+{
 }

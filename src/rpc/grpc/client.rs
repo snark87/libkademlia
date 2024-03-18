@@ -1,5 +1,8 @@
 use async_trait::async_trait;
 use log::error;
+use tonic::{transport::Channel, Response, Status};
+
+use self::kademlia_operations_client::KademliaOperationsClient;
 
 use super::{
     proto::{self, *},
@@ -21,6 +24,12 @@ pub trait GrpcClient: Sync + Send {
         addr: &str,
         request: FindValueRequest,
     ) -> Result<FindValueResponse, Error>;
+
+    async fn store_value(
+        &self,
+        addr: &str,
+        request: StoreValueRequest,
+    ) -> Result<StoreValueResponse, Error>;
 }
 
 pub struct GrpcClientImpl {}
@@ -38,45 +47,15 @@ impl GrpcClient for GrpcClientImpl {
         addr: &str,
         request: FindNodeRequest,
     ) -> Result<FindNodeResponse, Error> {
-        let mut client = proto::kademlia_operations_client::KademliaOperationsClient::connect(
-            String::from(addr),
-        )
-        .await
-        .map_err(|err| {
-            error!("find node gRPC transport error: {}", err);
-            Error::TransportError { error: err }
-        })?;
-        let result: tonic::Response<_> =
-            client
-                .find_node(request)
-                .await
-                .map_err(|status| Error::GrpcStatusError {
-                    code: status.code(),
-                    message: String::from(status.message()),
-                })?;
-        Ok(result.into_inner())
+        let mut client = connect(addr).await?;
+
+        map_status_to_error(client.find_node(request).await)
     }
 
     async fn ping(&self, addr: &str, request: PingRequest) -> Result<PingResponse, Error> {
-        let mut client = proto::kademlia_operations_client::KademliaOperationsClient::connect(
-            String::from(addr),
-        )
-        .await
-        .map_err(|err| {
-            error!("ping gRPC transport error: {}", err);
-            Error::TransportError { error: err }
-        })?;
+        let mut client = connect(addr).await?;
 
-        let result: tonic::Response<_> =
-            client
-                .ping(request)
-                .await
-                .map_err(|status| Error::GrpcStatusError {
-                    code: status.code(),
-                    message: String::from(status.message()),
-                })?;
-
-        Ok(result.into_inner())
+        map_status_to_error(client.ping(request).await)
     }
 
     async fn find_value(
@@ -84,24 +63,35 @@ impl GrpcClient for GrpcClientImpl {
         addr: &str,
         request: FindValueRequest,
     ) -> Result<FindValueResponse, Error> {
-        let mut client = proto::kademlia_operations_client::KademliaOperationsClient::connect(
-            String::from(addr),
-        )
+        let mut client = connect(addr).await?;
+        map_status_to_error(client.find_value(request).await)
+    }
+
+    async fn store_value(
+        &self,
+        addr: &str,
+        request: StoreValueRequest,
+    ) -> Result<StoreValueResponse, Error> {
+        let mut client = connect(addr).await?;
+
+        map_status_to_error(client.store_value(request).await)
+    }
+}
+
+async fn connect(addr: &str) -> Result<KademliaOperationsClient<Channel>, Error> {
+    proto::kademlia_operations_client::KademliaOperationsClient::connect(String::from(addr))
         .await
         .map_err(|err| {
-            error!("find_value gRPC transport error: {}", err);
+            error!("gRPC transport error connecting to {}: {}", addr, err);
             Error::TransportError { error: err }
-        })?;
+        })
+}
 
-        let result: tonic::Response<_> =
-            client
-                .find_value(request)
-                .await
-                .map_err(|status| Error::GrpcStatusError {
-                    code: status.code(),
-                    message: String::from(status.message()),
-                })?;
+fn map_status_to_error<T>(result: Result<Response<T>, Status>) -> Result<T, Error> {
+    let result = result.map_err(|status| Error::GrpcStatusError {
+        code: status.code(),
+        message: String::from(status.message()),
+    })?;
 
-        Ok(result.into_inner())
-    }
+    Ok(result.into_inner())
 }

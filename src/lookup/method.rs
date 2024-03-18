@@ -14,6 +14,8 @@ pub trait LookupMethod<P: KeySizeParameters> {
         &self,
         link: &Self::Link,
     ) -> Result<FindValueResult<P, Self::Link, Self::Value>, Self::Error>;
+
+    fn communicator(&self) -> &Self::Communicator;
 }
 
 /// represents lookup method for `FIND_NODE` procedure
@@ -60,6 +62,10 @@ impl<'a, P: KeySizeParameters, C: Communicator<P>> LookupMethod<P> for FindNodeL
         let response = self.communicator.get_k_closest(&link, self.key).await?;
         Ok(FindValueResult::ClosestNodes(response))
     }
+
+    fn communicator(&self) -> &C {
+        self.communicator
+    }
 }
 
 #[async_trait]
@@ -74,5 +80,9 @@ impl<'a, P: KeySizeParameters, C: Communicator<P>> LookupMethod<P> for FindValue
         link: &Self::Link,
     ) -> Result<FindValueResult<P, C::Link, C::Value>, C::Error> {
         self.communicator.find_value(&link, self.key).await
+    }
+
+    fn communicator(&self) -> &C {
+        self.communicator
     }
 }
