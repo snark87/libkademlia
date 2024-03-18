@@ -25,6 +25,8 @@ jobs:
         sudo apt-get install -y protobuf-compiler
     - name: Check Protoc Version
       run: protoc --version
+    - name: Check format
+      run: cargo fmt --all -- --check
     - name: Build
       run: cargo build --verbose
     - name: Run tests
