@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
 
 use crate::{key::Key, node::Node, operations, params::KeySizeParameters, KademliaParameters};
 
@@ -64,7 +65,9 @@ pub trait NodeAvailabilityChecker {
 /// This trait must be implemented by any entity that wishes to participate in the Kademlia DHT as a fully functional
 /// node, capable of both responding to requests from others and initiating its own queries within the network.
 #[async_trait]
-pub trait Communicator<P: KeySizeParameters>: NodeAvailabilityChecker + Send + Sync {
+pub trait Communicator<P: KeySizeParameters>:
+    NodeAvailabilityChecker + Send + Sync + 'static
+{
     type Value;
 
     /// Asynchronously retrieves a list of the `k` closest nodes to a given key within the DHT network.
@@ -124,17 +127,22 @@ pub trait Communicator<P: KeySizeParameters>: NodeAvailabilityChecker + Send + S
     ) -> Result<(), Self::Error>;
 }
 
+pub trait KademliaServerFactory<P: KademliaParameters> {
+    type Link: Clone;
+    type Instance: KademliaServer<P, Link = Self::Link>;
+
+    fn new_server(
+        &self,
+        operations: impl operations::KademliaOperations<P, Link = Self::Link> + 'static,
+    ) -> Self::Instance;
+}
+
 #[async_trait]
 pub trait KademliaServer<P: KademliaParameters> {
     type Error: std::error::Error;
     type Link: Clone;
 
-    fn with_operation_handler(
-        self,
-        handler: impl operations::KademliaOperations<P, Link = Self::Link>,
-    ) -> Self;
-
-    async fn start_server(&self) -> Result<(), Self::Error>;
+    async fn start_server(self, cancel: CancellationToken) -> Result<(), Self::Error>;
 
     fn get_link(&self) -> &Self::Link;
 }

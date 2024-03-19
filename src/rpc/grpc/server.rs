@@ -1,11 +1,50 @@
-use crate::{key, node, operations, rpc::KademliaServer, KademliaParameters};
+use log::info;
+use std::marker::PhantomData;
+use tokio_util::sync::CancellationToken;
+use tonic::transport::Server;
+
+use crate::{
+    key, node, operations,
+    rpc::{
+        grpc::server::kademlia_operations_server::KademliaOperationsServer, KademliaServer,
+        KademliaServerFactory,
+    },
+    KademliaParameters,
+};
 
 use self::kademlia_operations_server::KademliaOperations;
 
 use super::{proto::*, Error};
 
+pub struct KademliaGrpcInterfaceFactory<P: KademliaParameters> {
+    _phantom_p: PhantomData<P>,
+    listen_addr: String,
+}
+
 pub struct KademliaGrpcInterface<P: KademliaParameters> {
     operations: Box<dyn operations::KademliaOperations<P, Link = String>>,
+    listen_addr: String,
+}
+
+impl<P: KademliaParameters> KademliaServerFactory<P> for KademliaGrpcInterfaceFactory<P> {
+    type Link = String;
+    type Instance = KademliaGrpcInterface<P>;
+
+    fn new_server(
+        &self,
+        operations: impl operations::KademliaOperations<P, Link = String> + 'static,
+    ) -> Self::Instance {
+        KademliaGrpcInterface::new(self.listen_addr.clone(), operations)
+    }
+}
+
+impl<P: KademliaParameters> KademliaGrpcInterfaceFactory<P> {
+    pub fn new(listen_addr: String) -> Self {
+        Self {
+            _phantom_p: PhantomData,
+            listen_addr: listen_addr,
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -68,15 +107,18 @@ impl<P: KademliaParameters> KademliaServer<P> for KademliaGrpcInterface<P> {
     type Error = Error;
     type Link = String;
 
-    fn with_operation_handler(
-        self,
-        handler: impl operations::KademliaOperations<P, Link = String>,
-    ) -> Self {
-        todo!()
-    }
-
-    async fn start_server(&self) -> Result<(), Self::Error> {
-        todo!()
+    async fn start_server(self, cancel: CancellationToken) -> Result<(), Self::Error> {
+        let addr = self
+            .listen_addr
+            .parse()
+            .map_err(|err| Error::AddrParseError { error: err })?;
+        let server = KademliaOperationsServer::new(self);
+        info!("gRPC server listens to {}", addr);
+        let result = Server::builder()
+            .add_service(server)
+            .serve_with_shutdown(addr, cancel.cancelled())
+            .await;
+        result.map_err(|err| Error::TransportError { error: err })
     }
 
     fn get_link(&self) -> &Self::Link {
@@ -85,7 +127,13 @@ impl<P: KademliaParameters> KademliaServer<P> for KademliaGrpcInterface<P> {
 }
 
 impl<P: KademliaParameters> KademliaGrpcInterface<P> {
-    pub fn new() -> Self {
-        todo!();
+    pub fn new(
+        listen_addr: String,
+        operations: impl operations::KademliaOperations<P, Link = String> + 'static,
+    ) -> Self {
+        Self {
+            operations: Box::new(operations),
+            listen_addr: listen_addr,
+        }
     }
 }

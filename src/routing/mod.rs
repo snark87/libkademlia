@@ -12,7 +12,7 @@ use kbucket::KBucket;
 use self::kbucket::{KBucketWithCloseness, ShiftedKey};
 
 #[async_trait]
-pub trait RoutingTable<P: KademliaParameters> {
+pub trait RoutingTable<P: KademliaParameters>: Send + Sync + 'static {
     type Link: Clone;
     type Communicator: Communicator<P, Link = Self::Link>;
 
@@ -96,8 +96,11 @@ impl<P: KademliaParameters, Link: Clone, C: Communicator<P, Link = Link>>
 }
 
 #[async_trait]
-impl<P: KademliaParameters, Link: Clone + Send + Sync, C: Communicator<P, Link = Link>>
-    RoutingTable<P> for SimpleRoutingTable<P, Link, C>
+impl<
+        P: KademliaParameters,
+        Link: Clone + Send + Sync + 'static,
+        C: Communicator<P, Link = Link>,
+    > RoutingTable<P> for SimpleRoutingTable<P, Link, C>
 {
     type Link = Link;
     type Communicator = C;

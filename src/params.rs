@@ -17,7 +17,7 @@ use generic_array::{typenum, ArrayLength};
 /// # Associated Types
 /// - `KeySize`: The core of this trait, representing the dimension of keys managed or generated
 ///   by the implementing system. Must implement `ArrayLength` trait.
-pub trait KeySizeParameters: Clone {
+pub trait KeySizeParameters: Clone + 'static {
     type KeySize: ArrayLength;
 }
 
@@ -69,7 +69,7 @@ pub trait KeySizeParameters: Clone {
 /// This trait ensures that the fundamental parameters necessary for the functioning and optimization
 /// of Kademlia DHTs are explicitly defined and accessible, promoting clear, consistent, and configurable
 /// implementations of the protocol.
-pub trait KademliaParameters: KeySizeParameters {
+pub trait KademliaParameters: KeySizeParameters + Send + Sync + 'static {
     const K_PARAM: u8;
     const ALPHA_PARAM: u8;
 }
