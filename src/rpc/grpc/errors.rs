@@ -1,3 +1,5 @@
+use std::net::AddrParseError;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,4 +16,6 @@ pub enum Error {
     TransportError { error: tonic::transport::Error },
     #[error("gRPC response with code {code:?}: {message:?}")]
     GrpcStatusError { code: tonic::Code, message: String },
+    #[error("error parsing address: {error}")]
+    AddrParseError { error: AddrParseError },
 }

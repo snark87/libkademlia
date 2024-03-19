@@ -12,3 +12,4 @@ use thiserror::Error;
 pub use communicator::GrpcCommunicator;
 pub use errors::Error;
 pub use server::KademliaGrpcInterface;
+pub use server::KademliaGrpcInterfaceFactory;

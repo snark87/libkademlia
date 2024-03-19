@@ -153,8 +153,9 @@ impl<P: KademliaParameters, Link: Clone> KBucket<P, Link> {
             return None;
         }
 
-        // nodes should contain K elements
-        let least_recently_seen = self.least_recently_seen().unwrap();
+        let least_recently_seen = self
+            .least_recently_seen()
+            .expect("nodes should contain K elements");
         let ping_result = communicator.ping(&least_recently_seen.link).await;
         match ping_result {
             Err(_) => {
